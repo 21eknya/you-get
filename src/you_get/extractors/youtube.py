@@ -360,29 +360,67 @@ class YouTube(VideoExtractor):
             for ct in caption_tracks:
                 ttsurl, lang = ct['baseUrl'], ct['languageCode']
 
+#                # TODO: put t_lang into options
+                t_lang = 'zh-Hans'
+                t_ttsurl, t_lang = ct['baseUrl'] + '&tlang=zh_Hans', t_lang
+
                 tts_xml = parseString(get_content(ttsurl))
                 transcript = tts_xml.getElementsByTagName('transcript')[0]
                 texts = transcript.getElementsByTagName('text')
-                srt = ""; seq = 0
+
+                t_tts_xml = parseString(get_content(t_ttsurl))
+                t_transcript = t_tts_xml.getElementsByTagName('transcript')[0]
+                t_texts = t_transcript.getElementsByTagName('text')
+                it = iter(t_texts)
+                t_text = next(it)
+                if t_text.firstChild is None: t_text = next(it)
+                last_item_finish_str = None
+                last_content = None
+                t_start = float(t_text.getAttribute('start'))
+                if t_text.getAttribute('dur'):
+                    t_dur = float(t_text.getAttribute('dur'))
+                t_finish = t_start + t_dur
+
+                srt = []; seq = 0
                 for text in texts:
+#                    log.d('{} -{}'.format(text.getAttribute('start'), str(float(text.getAttribute('start')) + float(text.getAttribute('dur')))))
                     if text.firstChild is None: continue # empty element
                     seq += 1
                     start = float(text.getAttribute('start'))
-                    if text.getAttribute('dur'):
-                        dur = float(text.getAttribute('dur'))
-                    else: dur = 1.0 # could be ill-formed XML
-                    finish = start + dur
+#                    if text.getAttribute('dur'):
+#                        dur = float(text.getAttribute('dur'))
+#                    else: dur = 1.0 # could be ill-formed XML
+#                    finish = start + dur
+
+                    if start >= t_finish:
+                        t_text = next(it)
+                        t_start = float(t_text.getAttribute('start'))
+                        if t_text.getAttribute('dur'):
+                            t_dur = float(t_text.getAttribute('dur'))
+                        t_finish = t_start + t_dur
+
                     m, s = divmod(start, 60); h, m = divmod(m, 60)
-                    start = '{:0>2}:{:0>2}:{:06.3f}'.format(int(h), int(m), s).replace('.', ',')
-                    m, s = divmod(finish, 60); h, m = divmod(m, 60)
-                    finish = '{:0>2}:{:0>2}:{:06.3f}'.format(int(h), int(m), s).replace('.', ',')
-                    content = unescape_html(text.firstChild.nodeValue)
+                    start_str = '{:0>2}:{:0>2}:{:06.3f}'.format(int(h), int(m), s).replace('.', ',')
+                    last_item_finish_str = start_str
+                    if last_content and last_item_finish_str:
+                        srt += [last_item_finish_str, '\n{}\n\n'.format(last_content)]
+#                    m, s = divmod(finish, 60); h, m = divmod(m, 60)
+#                    finish_str = '{:0>2}:{:0>2}:{:06.3f}'.format(int(h), int(m), s).replace('.', ',')
+#                    content = unescape_html(text.firstChild.nodeValue)
 
-                    srt += '%s\n' % str(seq)
-                    srt += '%s --> %s\n' % (start, finish)
-                    srt += '%s\n\n' % content
+                    t_content = unescape_html(t_text.firstChild.nodeValue)
+                    last_content = t_content + '\n' + unescape_html(text.firstChild.nodeValue)
+                    
+#                    srt += '%s\n' % str(seq)
+#                    srt += '%s --> %s\n' % (start_str, finish_str)
+#                    srt += '%s\n\n' % content
+                    srt += ['{}\n'.format(seq), '{} --> '.format(start_str)]
+                m, s = divmod(t_finish, 60); h, m = divmod(m, 60)
+                t_finish_str = '{:0>2}:{:0>2}:{:06.3f}'.format(int(h), int(m), s).replace('.', ',')
+                srt += [t_finish_str, '\n{}\n\n'.format(last_content)]
 
-                self.caption_tracks[lang] = srt
+
+                self.caption_tracks[lang] = ''.join(srt)
         except: pass
 
         # Prepare DASH streams (NOTE: not every video has DASH streams!)
