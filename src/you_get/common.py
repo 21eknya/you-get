@@ -1506,6 +1506,10 @@ def script_main(download, download_playlist, **kwargs):
         help='Do not merge video parts'
     )
     download_grp.add_argument(
+        '-T', '--translate', metavar='LANGUAGE_CODE',
+        help='Language code for the additional caption track'
+    )
+    download_grp.add_argument(
         '--no-caption', action='store_true',
         help='Do not download captions (subtitles, lyrics, danmaku, ...)'
     )

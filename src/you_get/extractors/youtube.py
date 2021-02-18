@@ -4,7 +4,7 @@ from ..common import *
 from ..extractor import VideoExtractor
 
 from xml.dom.minidom import parseString
-from .merge_caption_track import *
+from .merge_caption_tracks import *
 
 
 class YouTube(VideoExtractor):
@@ -366,14 +366,18 @@ class YouTube(VideoExtractor):
                 tts_xml = parseString(get_content(ttsurl))
                 transcript = tts_xml.getElementsByTagName('transcript')[0]
                 texts = transcript.getElementsByTagName('text')
-
-#                # TODO: put t_lang into options
-                t_lang = 'zh-Hans'
-                t_ttsurl, t_lang = ct['baseUrl'] + '&tlang=zh_Hans', t_lang
+                zh_hans_code_names = {'zh-hans', 'chinese', 'mandarin', 'zh', '中文', 'cn'}
+                if kwargs['args'].translate.lower() in zh_hans_code_names:
+                    log.i('Additional caption track in Chinese-Simplified added.')
+                    t_lang = 'zh-hans'
+                else:
+                    log.i('Unrecognized language code. Additional caption track in English added.')
+                    t_lang = 'en'
+                t_ttsurl = ct['baseUrl'] + '&tlang={}'.format(t_lang)
                 t_tts_xml = parseString(get_content(t_ttsurl))
                 t_transcript = t_tts_xml.getElementsByTagName('transcript')[0]
                 t_texts = t_transcript.getElementsByTagName('text')
-                srt = merge_caption_tracks(texts, t_texts)
+                srt = combine_caption_tracks(texts, t_texts)
                 self.caption_tracks[lang] = ''.join(srt)
         except: pass
 

@@ -26,6 +26,8 @@ class SrtSeg:
         srt.append('{}\n{} --> {}\n{}\n\n'.format(index, self.start_str(), self.finish_str(), self.content))
 #        log.d('asse: {}: {}'.format(len(srt), srt[-1]))
 
+    def __str__(self):
+        return '{}->{}:{}'.format(self.start, self.finish, self.content)
 
 def next_seg(track_iter):
     return SrtSeg(next(track_iter))
@@ -71,3 +73,39 @@ def merge_caption_tracks(bits_track, assembled_track):
     srt.append('{}\n{}'.format(time_str(min(b_seg.start, prev_b_seg.finish)), prev_b_seg.content))
     return srt
 
+
+def combine_caption_tracks(bits_track, assembled_track):
+    ''' bits_track: automatically generated caption track.
+        assembled_track: Translated caption track.
+        The assumption here is that the start time of each segment of the assembled_track can be found in bits_track.
+        The intention for this function is to merge two tracks with the 'dur' values of the segments in bits_track fixed.
+        This function refreshes the automatically generated and translated caption track togather.
+    '''
+    srt = []
+    index = 1
+    bit = iter(bits_track)
+    ait = iter(assembled_track)
+    b_skip = next(bit)
+    b_seg = next_seg(bit) if b_skip.firstChild is None else SrtSeg(b_skip)
+    a_skip = next(ait)
+    a_seg = next_seg(ait) if a_skip.firstChild is None else SrtSeg(a_skip)
+
+    next_b_seg = next_seg(bit)
+    next_a_seg = next_seg(ait)
+    while True:
+        srt.append('{}\n{} --> {}\n{}\n'.format(index, b_seg.start_str(), time_str(min(b_seg.finish, next_b_seg.start)), '{}\n{}\n'.format(a_seg.content, b_seg.content)))
+        try:
+            if next_b_seg.start + 0.001 >= a_seg.finish:
+                a_seg = next_a_seg
+                next_a_seg = next_seg(ait)
+            index += 1
+            b_seg = next_b_seg
+            next_b_seg = next_seg(bit)
+        except StopIteration:
+            break
+    index += 1
+    if b_seg.finish + 0.001 < a_seg.finish:
+        srt.append('{}\n{} --> {}\n{}\n'.format(index, next_b_seg.start_str(), time_str(min(next_b_seg.finish, a_seg.finish)), '{}\n{}\n'.format(a_seg.content, next_b_seg.content)))
+    else:
+        srt.append('{}\n{} --> {}\n{}\n'.format(index, b_seg.start_str(), time_str(min(b_seg.finish, a_seg.finish)), '{}\n{}\n'.format(a_seg.content, b_seg.content)))
+    return srt
